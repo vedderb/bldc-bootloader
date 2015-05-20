@@ -96,6 +96,7 @@ static void exit_bootloader(void);
 static int16_t erase_app(uint32_t new_app_size);
 static int16_t write_app_data(uint32_t offset, uint8_t *data, uint32_t len);
 void blink_led(int led, int blinks);
+void sleep(int time);
 
 // Private variables
 static uint8_t *new_app_addr;
@@ -176,23 +177,31 @@ void blink_led(int led, int blinks) {
 	if (led == LED_GREEN) {
 		for (int i = 0;i < blinks;i++) {
 			LED_GREEN_ON();
-			chThdSleepMilliseconds(200);
+			sleep(200);
 			LED_GREEN_OFF();
-			chThdSleepMilliseconds(200);
+			sleep(200);
 		}
 	} else if (led == LED_RED) {
 		for (int i = 0;i < blinks;i++) {
 			LED_RED_ON();
-			chThdSleepMilliseconds(200);
+			sleep(200);
 			LED_RED_OFF();
-			chThdSleepMilliseconds(200);
+			sleep(200);
 		}
 	}
 }
 
+void sleep(int time) {
+	for (volatile int i = 0;i < time * 10000;i++) {
+		__NOP();
+	}
+
+//	chThdSleepMilliseconds(time);
+}
+
 int main(void) {
-	halInit();
-	chSysInit();
+//	halInit();
+//	chSysInit();
 
 	// Change the vector table offset
 	SCB_VTOR = flash_addr[BOOTLOADER_BASE];
@@ -234,12 +243,12 @@ int main(void) {
 
 	// Erasing or writing to flash failed. A programmer is needed
 	// to upload the firmware now.
-	chThdSleepMilliseconds(2000);
+	sleep(2000);
 	blink_led(LED_RED, 8);
 	exit_bootloader();
 
 	// Should not happen
 	for(;;) {
-		chThdSleepMilliseconds(1000);
+		sleep(1000);
 	}
 }
