@@ -191,6 +191,10 @@ static int16_t write_new_app(void) {
 }
 
 void blink_led(int led, int blinks) {
+#if HW_VER == 0
+	(void)led;
+	(void)blinks;
+#else
 	if (led == LED_GREEN) {
 		for (int i = 0;i < blinks;i++) {
 			LED_GREEN_ON();
@@ -206,6 +210,7 @@ void blink_led(int led, int blinks) {
 			sleep(200);
 		}
 	}
+#endif
 }
 
 void sleep(int time) {
