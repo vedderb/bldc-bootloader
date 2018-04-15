@@ -22,6 +22,9 @@
 #include "crc.h"
 #include "buffer.h"
 
+// 0 means generic, no LEDs
+#define HW_VER					0
+
 /*
  * Defines
  */
@@ -48,18 +51,32 @@
 #define ADDR_FLASH_SECTOR_11    ((uint32_t)0x080E0000) // Base @ of Sector 11, 128 Kbytes
 
 // LEDs
+#if HW_VER == 60
+#define LED_GREEN_GPIO			GPIOB
+#define LED_GREEN_PIN			0
+#define LED_RED_GPIO			GPIOB
+#define LED_RED_PIN				1
+#else
 #define LED_GREEN_GPIO			GPIOC
 #define LED_GREEN_PIN			4
 #define LED_RED_GPIO			GPIOA
 #define LED_RED_PIN				7
+#endif
 
 #define LED_GREEN				0
 #define LED_RED					1
 
+#if HW_VER == 0
+#define LED_GREEN_ON()
+#define LED_GREEN_OFF()
+#define LED_RED_ON()
+#define LED_RED_OFF()
+#else
 #define LED_GREEN_ON()			palSetPad(LED_GREEN_GPIO, LED_GREEN_PIN)
 #define LED_GREEN_OFF()			palClearPad(LED_GREEN_GPIO, LED_GREEN_PIN)
 #define LED_RED_ON()			palSetPad(LED_RED_GPIO, LED_RED_PIN)
 #define LED_RED_OFF()			palClearPad(LED_RED_GPIO, LED_RED_PIN)
+#endif
 
 // Private constants
 static const uint32_t flash_addr[FLASH_SECTORS] = {
@@ -210,12 +227,14 @@ int main(void) {
 	new_app_addr = (uint8_t *)flash_addr[NEW_APP_BASE];
 
 	// LEDs
+#if HW_VER != 0
 	palSetPadMode(LED_GREEN_GPIO, LED_GREEN_PIN,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
 	palSetPadMode(LED_RED_GPIO, LED_RED_PIN,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
+#endif
 
 	LED_GREEN_OFF();
 	LED_RED_OFF();
