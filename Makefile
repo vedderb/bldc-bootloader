@@ -79,6 +79,7 @@ include $(CHIBIOS)/os/hal/platforms/STM32F4xx/platform.mk
 include $(CHIBIOS)/os/hal/hal.mk
 include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F4xx/port.mk
 include $(CHIBIOS)/os/kernel/kernel.mk
+include heatshrink/heatshrink.mk
 
 # Define linker script file here
 LDSCRIPT= ld_bootloader.ld
@@ -94,7 +95,8 @@ CSRC = $(PORTSRC) \
        $(BOARDSRC) \
        main.c \
        crc.c \
-       buffer.c
+       buffer.c \
+       $(HEATSHRINKSRC)
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -125,7 +127,8 @@ ASMSRC = $(PORTASM)
 
 INCDIR = $(PORTINC) $(KERNINC) \
          $(HALINC) $(PLATFORMINC) $(BOARDINC) \
-         $(CHIBIOS)/os/various
+         $(CHIBIOS)/os/various \
+         $(HEATSHRINKINC)
 
 #
 # Project, sources and paths

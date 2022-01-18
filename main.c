@@ -21,9 +21,12 @@
 #include "stm32f4xx_conf.h"
 #include "crc.h"
 #include "buffer.h"
+#include "heatshrink_decoder.h"
 
 // 0 means generic, no LEDs
-#define HW_VER					0
+#ifndef HW_VER
+#define HW_VER					60
+#endif
 
 /*
  * Defines
@@ -31,7 +34,7 @@
 #define FLASH_SECTORS			12
 #define BOOTLOADER_BASE			11
 #define APP_BASE				0
-#define APP_SECTORS				7
+#define APP_SECTORS				8
 #define NEW_APP_BASE			8
 #define NEW_APP_SECTORS			3
 #define NEW_APP_MAX_SIZE		(3 * (1 << 17))
@@ -108,9 +111,12 @@ static const uint16_t flash_sector[12] = {
 		FLASH_Sector_11
 };
 
+static heatshrink_decoder hsd;
+
 // Private functions
 static void exit_bootloader(void);
 static int16_t erase_app(uint32_t new_app_size);
+static int16_t erase_app_all(void);
 static int16_t write_app_data(uint32_t offset, uint8_t *data, uint32_t len);
 void blink_led(int led, int blinks);
 void sleep(int time);
@@ -150,6 +156,20 @@ static int16_t erase_app(uint32_t new_app_size) {
 	return FLASH_COMPLETE;
 }
 
+static int16_t erase_app_all(void) {
+	FLASH_Unlock();
+	FLASH_ClearFlag(FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
+			FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
+	for (int i = 0;i < APP_SECTORS;i++) {
+		int16_t res = FLASH_EraseSector(flash_sector[APP_BASE + i], VoltageRange_3);
+		if (res != FLASH_COMPLETE) {
+			return res;
+		}
+	}
+
+	return FLASH_COMPLETE;
+}
+
 static int16_t write_app_data(uint32_t offset, uint8_t *data, uint32_t len) {
 	FLASH_ClearFlag(FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
 			FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
@@ -169,6 +189,12 @@ static int16_t write_new_app(void) {
 	uint32_t size = buffer_get_uint32(new_app_addr, &ind);
 	uint16_t crc_app = buffer_get_uint16(new_app_addr, &ind);
 
+	bool is_compressed = false;
+	if ((size >> 24) == 0xCC) {
+		is_compressed = true;
+		size &= 0x00FFFFFF;
+	}
+
 	if (size > NEW_APP_MAX_SIZE) {
 		return -1;
 	}
@@ -182,12 +208,61 @@ static int16_t write_new_app(void) {
 		return -3;
 	}
 
-	int16_t res = erase_app(size);
+	int16_t res;
+	if (is_compressed) {
+		res = erase_app_all();
+	} else {
+		res = erase_app(size);
+	}
 	if (res != FLASH_COMPLETE) {
 		return res;
 	}
 
-	return write_app_data(0, new_app_addr + ind, size);
+	if (is_compressed) {
+		heatshrink_decoder_reset(&hsd);
+
+		uint32_t compressed_size = size;
+		size_t count = 0;
+		uint32_t sunk = 0;
+		uint32_t polled = 0;
+		uint8_t *input = new_app_addr + ind;
+
+		while (sunk < compressed_size) {
+			HSD_sink_res sres;
+			sres = heatshrink_decoder_sink(&hsd, &input[sunk], compressed_size - sunk, &count);
+
+			if (sres < 0) {
+				return sres;
+			}
+
+			sunk += count;
+			if (sunk == compressed_size) {
+				heatshrink_decoder_finish(&hsd);
+			}
+
+			HSD_poll_res pres;
+			do {
+				uint8_t chunk[16];
+				pres = heatshrink_decoder_poll(&hsd, chunk, 16, &count);
+				if (pres < 0) {
+					return pres;
+				}
+
+				res = write_app_data(polled, chunk, count);
+				if (res != FLASH_COMPLETE) {
+					return res;
+				}
+				polled += count;
+			} while (pres == HSDR_POLL_MORE);
+			if (sunk == compressed_size) {
+				heatshrink_decoder_finish(&hsd);
+			}
+		}
+	} else {
+		res = write_app_data(0, new_app_addr + ind, size);
+	}
+
+	return res;
 }
 
 void blink_led(int led, int blinks) {
@@ -239,6 +314,14 @@ int main(void) {
 	palSetPadMode(LED_RED_GPIO, LED_RED_PIN,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
+#endif
+
+	// Hold shutdown pin on to prevent powering off.
+#if HW_VER == 60
+	palSetPadMode(GPIOC, 5,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
+	palSetPad(GPIOC, 5);
 #endif
 
 	LED_GREEN_OFF();
