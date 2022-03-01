@@ -53,6 +53,8 @@
 #define ADDR_FLASH_SECTOR_10    ((uint32_t)0x080C0000) // Base @ of Sector 10, 128 Kbytes
 #define ADDR_FLASH_SECTOR_11    ((uint32_t)0x080E0000) // Base @ of Sector 11, 128 Kbytes
 
+#define ERASE_VOLTAGE_RANGE		(uint8_t)((PWR->CSR & PWR_CSR_PVDO) ? VoltageRange_2 : VoltageRange_3)
+
 // LEDs
 #if HW_VER == 60
 #define LED_GREEN_GPIO			GPIOB
@@ -144,7 +146,7 @@ static int16_t erase_app(uint32_t new_app_size) {
 
 	for (int i = 0;i < APP_SECTORS;i++) {
 		if (new_app_size > flash_addr[APP_BASE + i]) {
-			int16_t res = FLASH_EraseSector(flash_sector[APP_BASE + i], VoltageRange_3);
+			int16_t res = FLASH_EraseSector(flash_sector[APP_BASE + i], ERASE_VOLTAGE_RANGE);
 			if (res != FLASH_COMPLETE) {
 				return res;
 			}
@@ -161,7 +163,7 @@ static int16_t erase_app_all(void) {
 	FLASH_ClearFlag(FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
 			FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
 	for (int i = 0;i < APP_SECTORS;i++) {
-		int16_t res = FLASH_EraseSector(flash_sector[APP_BASE + i], VoltageRange_3);
+		int16_t res = FLASH_EraseSector(flash_sector[APP_BASE + i], ERASE_VOLTAGE_RANGE);
 		if (res != FLASH_COMPLETE) {
 			return res;
 		}
